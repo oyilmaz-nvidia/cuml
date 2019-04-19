@@ -31,6 +31,7 @@
 #include <functions/penalty.h>
 #include <functions/softThres.h>
 #include <functions/linearReg.h>
+#include <omp.h>
 
 namespace ML {
 namespace Solver {
@@ -51,6 +52,7 @@ void cdParalFit(math_t *input,
 		   math_t alpha,
 		   math_t l1_ratio,
 		   math_t tol,
+		   int n_processors,
 		   cudaStream_t stream,
 		   cublasHandle_t cublas_handle,
 		   cusolverDnHandle_t cusolver_handle) {
@@ -71,11 +73,10 @@ void cdParalFit(math_t *input,
 	math_t *coef_copied = NULL;
 
 	// Calculate here the first eigenvalue of AtA to get the number of processor (# of parallel operations)
-	int n_processor = 1;
 
-	allocate(coef_copied, n_cols * n_processor, true);
+	allocate(coef_copied, n_cols * n_processors, true);
 	allocate(loss_value, 1);
-	allocate(preds, n_rows * n_processor, true);
+	allocate(preds, n_rows * n_processors, true);
 	allocate(squared, n_cols, true);
 
 	std::vector<math_t> h_coef(n_cols, math_t(0));
@@ -110,18 +111,23 @@ void cdParalFit(math_t *input,
 			Solver::shuffle(rand_indices, g);
 		}
 
-		for (int j = 0; j < n_processor; j++) {
+		math_t coef_max = 0.0;
+		math_t d_coef_max = 0.0;
+		math_t coef_prev = 0.0;
+
+		for (int j = 0; j < n_processors; j++) {
 			math_t *coef_copied_loc = coef_copied + (j * n_cols);
 			Matrix::setValue(coef_copied_loc + rand_indices[j], coef_copied_loc + rand_indices[j], math_t(0.0), 1, stream);
 		}
 
-		LinAlg::gemm(input, n_rows, n_cols, coef_copied, preds, n_rows, n_processor,
+		LinAlg::gemm(input, n_rows, n_cols, coef_copied, preds, n_rows, n_processors,
 							CUBLAS_OP_N, CUBLAS_OP_N, cublas_handle);
 
-		for (int j = 0; j < n_processor; j++) {
-			int loc = j * n_rows;
-			LinAlg::subtract(preds + loc, labels, preds + loc, n_rows);
+		Matrix::matrixVectorBinarySub(preds, labels, n_rows, n_processors, false, false);
+		LinAlg::scalarMultiply(preds, preds, math_t(-1.0), n_rows * n_processors, stream);
 
+		for (int j = 0; j < n_processors; j++) {
+			int loc = j * n_rows;
 			math_t *input_col_loc = input + (rand_indices[j] * n_rows);
 			math_t *coef_loc = coef + rand_indices[j];
 			math_t *squared_loc = squared + rand_indices[j];
@@ -133,9 +139,33 @@ void cdParalFit(math_t *input,
 				Functions::softThres(coef_loc, coef_loc, alpha, 1);
 
 			LinAlg::eltwiseDivideCheckZero(coef_loc, coef_loc, squared_loc, 1);
+
+			coef_prev = h_coef[rand_indices[j]];
+			updateHost(&(h_coef[rand_indices[j]]), coef_loc, 1);
+			math_t diff = abs(coef_prev - h_coef[rand_indices[j]]);
+
+			if (diff > d_coef_max)
+				d_coef_max = diff;
+
+			if (abs(h_coef[rand_indices[j]]) > coef_max)
+				coef_max = abs(h_coef[rand_indices[j]]);
 		}
 
-		for (int j = 0; j < n_processor; j++) {
+		bool flag_continue = true;
+		if (coef_max == math_t(0)) {
+			flag_continue = false;
+		}
+
+		if ((d_coef_max / coef_max) < tol) {
+			flag_continue = false;
+		}
+
+		if (!flag_continue) {
+			//printf("iter:%d, coef_max: %f, d_coef_max: %f\n", i, coef_max, d_coef_max);
+			break;
+		}
+
+		for (int j = 0; j < n_processors; j++) {
 			math_t *coef_copied_loc = coef_copied + (j * n_cols);
 			copy(coef_copied_loc, coef, n_cols);
 		}

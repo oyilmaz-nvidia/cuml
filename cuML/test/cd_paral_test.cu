@@ -64,6 +64,7 @@ protected:
 		bool fit_intercept = false;
 		bool normalize = false;
 		int epochs = 1000;
+		int n_processors = 2;
 		T alpha = T(0.2);
 		T l1_ratio = T(1.0);
 		T tol = T(1e-4);
@@ -72,13 +73,13 @@ protected:
 		intercept = T(0);
 		cdParalFit(data, params.n_row, params.n_col, labels, coef, &intercept,
 			  fit_intercept, normalize, epochs, loss, alpha, l1_ratio,
-			  tol,  stream, cublas_handle, cusolver_handle);
+			  tol, n_processors, stream, cublas_handle, cusolver_handle);
 
 		fit_intercept = true;
 		intercept2 = T(0);
 		cdParalFit(data, params.n_row, params.n_col, labels, coef2, &intercept2,
 					  fit_intercept, normalize, epochs, loss, alpha, l1_ratio,
-					  tol, stream, cublas_handle, cusolver_handle);
+					  tol, n_processors, stream, cublas_handle, cusolver_handle);
 
 
 		alpha = T(1.0);
@@ -87,14 +88,14 @@ protected:
 		intercept = T(0);
 		cdParalFit(data, params.n_row, params.n_col, labels, coef3, &intercept,
 					  fit_intercept, normalize, epochs, loss, alpha, l1_ratio,
-					  tol, stream, cublas_handle, cusolver_handle);
+					  tol, n_processors, stream, cublas_handle, cusolver_handle);
 
 
 		fit_intercept = true;
 		intercept2 = T(0);
 		cdParalFit(data, params.n_row, params.n_col, labels, coef4, &intercept2,
 					  fit_intercept, normalize, epochs, loss, alpha, l1_ratio,
-					  tol, stream, cublas_handle, cusolver_handle);
+					  tol, n_processors, stream, cublas_handle, cusolver_handle);
 
 		CUBLAS_CHECK(cublasDestroy(cublas_handle));
 		CUSOLVER_CHECK(cusolverDnDestroy(cusolver_handle));

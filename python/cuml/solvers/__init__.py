@@ -16,3 +16,4 @@
 
 from cuml.solvers.sgd import SGD
 from cuml.solvers.cd import CD
+from cuml.solvers.parallel_cd import ParallelCD
