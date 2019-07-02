@@ -100,6 +100,23 @@ cdef extern from "randomforest/randomforest.h" namespace "ML":
                           rfClassifier[double] *, double *, int *,
                           int, int, int *, bool)
 
+    cdef void predictAllDTs(cumlHandle& handle,
+                      rfClassifier[float] *,
+                      float *,
+                      int,
+                      int,
+                      int *,
+                      bool) except +
+
+    cdef void predictAllDTs(cumlHandle& handle,
+                      rfClassifier[double] *,
+                      double *,
+                      int,
+                      int,
+                      int *,
+                      bool) except +
+
+
     cdef RF_params set_rf_class_obj(int, int, float,
                                     int, int, int,
                                     bool, bool, int, float, CRITERION,
@@ -300,8 +317,52 @@ cdef class RandomForest_impl():
         del(preds_m)
         return preds
 
-    def score(self, X, y):
+    def predictAllDTs(self, X):
 
+        cdef uintptr_t X_ptr
+        X_ptr = X.ctypes.data
+        n_rows, n_cols = np.shape(X)
+        if n_cols != self.n_cols:
+            raise ValueError("The number of columns/features in the training"
+                             " and test data should be the same ")
+        if X.dtype != self.dtype:
+            raise ValueError("The datatype of the training data is different"
+                             " from the datatype of the testing data")
+
+        preds = np.zeros(n_rows * self.n_estimators,
+                         dtype=np.int32)
+
+        cdef uintptr_t preds_ptr = preds.ctypes.data
+        cdef cumlHandle* handle_ =\
+            <cumlHandle*><size_t>self.handle.getHandle()
+
+        if self.dtype == np.float32:
+            predictAllDTs(handle_[0],
+                    self.rf_classifier32,
+                    <float*> X_ptr,
+                    <int> n_rows,
+                    <int> n_cols,
+                    <int*> preds_ptr,
+                    <bool> self.verbose)
+
+        elif self.dtype == np.float64:
+            predictAllDTs(handle_[0],
+                    self.rf_classifier64,
+                    <double*> X_ptr,
+                    <int> n_rows,
+                    <int> n_cols,
+                    <int*> preds_ptr,
+                    <bool> self.verbose)
+
+        else:
+            raise TypeError("supports only float32 and float64 input,"
+                            " but input of type '%s' passed."
+                            % (str(self.dtype)))
+
+        self.handle.sync()
+        return preds
+
+    def score(self, X, y):
         cdef uintptr_t X_ptr, y_ptr
         X_m, X_ptr, n_rows, n_cols, _ = \
             input_to_dev_array(X, order='C')
@@ -557,6 +618,26 @@ class RandomForestClassifier(Base):
         """
 
         return self._impl.predict(X)
+
+    def predictAllDTs(self, X):
+        """
+        Predicts the labels for X.
+
+        Parameters
+        ----------
+        X : array-like (host) shape = (n_samples, n_features)
+            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Acceptable formats: NumPy ndarray, Numba device
+            ndarray
+
+        Returns
+        ----------
+        y: NumPy
+           Dense vector (int) of shape (n_samples, 1)
+
+        """
+
+        return self._impl.predictAllDTs(X)
 
     def score(self, X, y):
         """

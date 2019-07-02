@@ -488,6 +488,58 @@ void rfClassifier<T>::predict(const cumlHandle& user_handle, const T* input,
 }
 
 /**
+ * @brief Predict target feature for input data; n-ary classification for single feature supported.
+ * @tparam T: data type for input data (float or double).
+ * @param[in] user_handle: cumlHandle (currently unused; API placeholder)
+ * @param[in] input: test data (n_rows samples, n_cols features) in row major format. CPU pointer.
+ * @param[in] n_rows: number of  data samples.
+ * @param[in] n_cols: number of features (excluding target feature).
+ * @param[in, out] predictions: n_rows predicted labels. CPU pointer, user allocated.
+ * @param[in] verbose: flag for debugging purposes.
+ */
+template <typename T>
+void rfClassifier<T>::predictAllDTs(const cumlHandle& user_handle,
+                                    const T* input, int n_rows, int n_cols,
+                                    int* predictions, bool verbose) const {
+  ASSERT(this->trees, "Cannot predict! No trees in the forest.");
+  ASSERT((n_rows > 0), "Invalid n_rows %d", n_rows);
+  ASSERT((n_cols > 0), "Invalid n_cols %d", n_cols);
+  ASSERT(predictions != nullptr,
+         "Error! User has not allocated memory for predictions.");
+  int row_size = n_cols;
+
+  int pred_id = 0;
+  for (int row_id = 0; row_id < n_rows; row_id++) {
+    if (verbose) {
+      std::cout << "\n\n";
+      std::cout << "Predict for sample: ";
+      for (int i = 0; i < n_cols; i++)
+        std::cout << input[row_id * row_size + i] << ", ";
+      std::cout << std::endl;
+    }
+
+    std::map<int, int> prediction_to_cnt;
+    std::pair<std::map<int, int>::iterator, bool> ret;
+    int max_cnt_so_far = 0;
+    int majority_prediction = -1;
+
+    for (int i = 0; i < this->rf_params.n_trees; i++) {
+      //Return prediction for one sample.
+      if (verbose) {
+        std::cout << "Printing tree " << i << std::endl;
+        //this->trees[i].print();
+      }
+      int prediction;
+      this->trees[i].predict(user_handle, &input[row_id * row_size], 1, n_cols,
+                             &prediction, verbose);
+
+      predictions[pred_id] = prediction;
+      pred_id++;
+    }
+  }
+}
+
+/**
  * @brief Predict target feature for input data and validate against ref_labels.
  * @tparam T: data type for input data (float or double).
  * @param[in] user_handle: cumlHandle.
@@ -789,6 +841,41 @@ void predict(const cumlHandle& user_handle,
              int n_rows, int n_cols, int* predictions, bool verbose) {
   rf_classifier->predict(user_handle, input, n_rows, n_cols, predictions,
                          verbose);
+}
+
+/**
+ * @brief Predict target feature for input data of type float; n-ary classification for single feature supported.
+ * @param[in] user_handle: cumlHandle (currently unused; API placeholder)
+ * @param[in] rf_classifier: pointer to the rfClassifier object. The user should have previously called fit to build the random forest.
+ * @param[in] input: test data (n_rows samples, n_cols features) in row major format. CPU pointer.
+ * @param[in] n_rows: number of  data samples.
+ * @param[in] n_cols: number of features (excluding target feature).
+ * @param[in, out] predictions: n_rows predicted labels. CPU pointer, user allocated.
+ * @param[in] verbose: flag for debugging purposes.
+ */
+void predictAllDTs(const cumlHandle& user_handle,
+                   const rfClassifier<float>* rf_classifier, const float* input,
+                   int n_rows, int n_cols, int* predictions, bool verbose) {
+  rf_classifier->predictAllDTs(user_handle, input, n_rows, n_cols, predictions,
+                               verbose);
+}
+
+/**
+ * @brief Predict target feature for input data of type double; n-ary classification for single feature supported.
+ * @param[in] user_handle: cumlHandle (currently unused; API placeholder)
+ * @param[in] rf_classifier: pointer to the rfClassifier object. The user should have previously called fit to build the random forest.
+ * @param[in] input: test data (n_rows samples, n_cols features) in row major format. CPU pointer.
+ * @param[in] n_rows: number of  data samples.
+ * @param[in] n_cols: number of features (excluding target feature).
+ * @param[in, out] predictions: n_rows predicted labels. CPU pointer, user allocated.
+ * @param[in] verbose: flag for debugging purposes.
+ */
+void predictAllDTs(const cumlHandle& user_handle,
+                   const rfClassifier<double>* rf_classifier,
+                   const double* input, int n_rows, int n_cols,
+                   int* predictions, bool verbose) {
+  rf_classifier->predictAllDTs(user_handle, input, n_rows, n_cols, predictions,
+                               verbose);
 }
 
 /**
