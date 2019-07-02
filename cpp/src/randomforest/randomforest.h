@@ -90,6 +90,8 @@ class rfClassifier : public rf<T> {
            int* labels, int n_unique_labels);
   void predict(const cumlHandle& user_handle, const T* input, int n_rows,
                int n_cols, int* predictions, bool verbose = false) const;
+  void predictAllDTs(const cumlHandle& user_handle, const T* input, int n_rows,
+                     int n_cols, int* predictions, bool verbose = false) const;
   RF_metrics cross_validate(const cumlHandle& user_handle, const T* input,
                             const int* ref_labels, int n_rows, int n_cols,
                             int* predictions, bool verbose = false) const;
@@ -119,6 +121,15 @@ void predict(const cumlHandle& user_handle,
 void predict(const cumlHandle& user_handle,
              const rfClassifier<double>* rf_classifier, const double* input,
              int n_rows, int n_cols, int* predictions, bool verbose = false);
+
+void predictAllDTs(const cumlHandle& user_handle,
+                   const rfClassifier<float>* rf_classifier, const float* input,
+                   int n_rows, int n_cols, int* predictions,
+                   bool verbose = false);
+void predictAllDTs(const cumlHandle& user_handle,
+                   const rfClassifier<double>* rf_classifier,
+                   const double* input, int n_rows, int n_cols,
+                   int* predictions, bool verbose = false);
 
 RF_metrics cross_validate(const cumlHandle& user_handle,
                           const rfClassifier<float>* rf_classifier,
