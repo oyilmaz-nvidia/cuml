@@ -131,9 +131,6 @@ class rfClassifier : public rf<T, int> {
 
   void predictAllDTs(const cumlHandle& user_handle, const T* input, int n_rows,
                      int n_cols, int* predictions, bool verbose = false) const;
-  void predictAllDTs(const cumlHandle& user_handle, const T* input, int n_rows,
-                     int n_cols, int* predictions, bool verbose = false) const;
-
 };
 
 template <class T>
@@ -151,8 +148,8 @@ class rfRegressor : public rf<T, T> {
   void predict(const cumlHandle& user_handle, const T* input, int n_rows,
                int n_cols, T* predictions, bool verbose = false) const;
   RF_metrics score(const cumlHandle& user_handle, const T* input,
-                   const T* ref_labels, int n_rows, int n_cols,
-                   T* predictions, bool verbose = false) const;
+                   const T* ref_labels, int n_rows, int n_cols, T* predictions,
+                   bool verbose = false) const;
 };
 
 // Stateless API functions: fit, predict and score.
@@ -212,13 +209,11 @@ void predict(const cumlHandle& user_handle,
              int n_rows, int n_cols, double* predictions, bool verbose = false);
 
 RF_metrics score(const cumlHandle& user_handle,
-                 const rfRegressor<float>* rf_regressor,
-                 const float* input, const float* ref_labels,
-                 int n_rows, int n_cols, float* predictions,
-                 bool verbose = false);
+                 const rfRegressor<float>* rf_regressor, const float* input,
+                 const float* ref_labels, int n_rows, int n_cols,
+                 float* predictions, bool verbose = false);
 RF_metrics score(const cumlHandle& user_handle,
-                 const rfRegressor<double>* rf_regressor,
-                 const double* input, const double* ref_labels,
-                 int n_rows, int n_cols, double* predictions,
-                 bool verbose = false);
+                 const rfRegressor<double>* rf_regressor, const double* input,
+                 const double* ref_labels, int n_rows, int n_cols,
+                 double* predictions, bool verbose = false);
 };  // namespace ML
