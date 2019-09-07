@@ -112,6 +112,8 @@ void calEig(const cumlHandle_impl &handle, math_t *components,
     // LinAlg::eigJacobi(in, prms.n_cols, prms.n_cols, components, explained_var,
     //                  (math_t)prms.tol, prms.n_iterations, cusolver_handle,
     //                  stream, allocator);
+    LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
+                  cusolver_handle, stream, allocator);
   } else {
     LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
                   cusolver_handle, stream, allocator);
