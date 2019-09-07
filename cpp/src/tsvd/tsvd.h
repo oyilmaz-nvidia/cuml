@@ -102,6 +102,27 @@ void calEig(const cumlHandle_impl &handle, math_t *in, math_t *components,
   Matrix::rowReverse(explained_var, prms.n_cols, 1, stream);
 }
 
+template <typename math_t>
+void calEig(const cumlHandle_impl &handle, math_t *components,
+            math_t *explained_var, paramsTSVD prms, cudaStream_t stream) {
+  auto cusolver_handle = handle.getcusolverDnHandle();
+  auto allocator = handle.getDeviceAllocator();
+
+  if (prms.algorithm == solver::COV_EIG_JACOBI) {
+    // LinAlg::eigJacobi(in, prms.n_cols, prms.n_cols, components, explained_var,
+    //                  (math_t)prms.tol, prms.n_iterations, cusolver_handle,
+    //                  stream, allocator);
+  } else {
+    LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
+                  cusolver_handle, stream, allocator);
+  }
+
+  Matrix::colReverse(components, prms.n_cols, prms.n_cols, stream);
+  LinAlg::transpose(components, prms.n_cols, stream);
+
+  Matrix::rowReverse(explained_var, prms.n_cols, 1, stream);
+}
+
 /**
  * @defgroup sign flip for PCA and tSVD. This is used to stabilize the sign of column major eigen vectors
  * @param input: input matrix that will be used to determine the sign.
@@ -179,19 +200,17 @@ void tsvdFit(const cumlHandle_impl &handle, math_t *input, math_t *components,
   if (prms.n_components > prms.n_cols) prms.n_components = prms.n_cols;
 
   int len = prms.n_cols * prms.n_cols;
-  device_buffer<math_t> input_cross_mult(allocator, stream, len);
+  device_buffer<math_t> components_all(allocator, stream, len);
 
   math_t alpha = math_t(1);
   math_t beta = math_t(0);
-  LinAlg::gemm(input, prms.n_rows, prms.n_cols, input, input_cross_mult.data(),
+  LinAlg::gemm(input, prms.n_rows, prms.n_cols, input, components_all.data(),
                prms.n_cols, prms.n_cols, CUBLAS_OP_T, CUBLAS_OP_N, alpha, beta,
                cublas_handle, stream);
 
-  device_buffer<math_t> components_all(allocator, stream, len);
   device_buffer<math_t> explained_var_all(allocator, stream, prms.n_cols);
 
-  calEig(handle, input_cross_mult.data(), components_all.data(),
-         explained_var_all.data(), prms, stream);
+  calEig(handle, components_all.data(), explained_var_all.data(), prms, stream);
 
   Matrix::truncZeroOrigin(components_all.data(), prms.n_cols, components,
                           prms.n_components, prms.n_cols, stream);
