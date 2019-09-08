@@ -82,38 +82,15 @@ void calCompExpVarsSvd(const cumlHandle_impl &handle, math_t *in,
 }
 
 template <typename math_t>
-void calEig(const cumlHandle_impl &handle, math_t *in, math_t *components,
-            math_t *explained_var, paramsTSVD prms, cudaStream_t stream) {
-  auto cusolver_handle = handle.getcusolverDnHandle();
-  auto allocator = handle.getDeviceAllocator();
-
-  if (prms.algorithm == solver::COV_EIG_JACOBI) {
-    LinAlg::eigJacobi(in, prms.n_cols, prms.n_cols, components, explained_var,
-                      (math_t)prms.tol, prms.n_iterations, cusolver_handle,
-                      stream, allocator);
-  } else {
-    LinAlg::eigDC(in, prms.n_cols, prms.n_cols, components, explained_var,
-                  cusolver_handle, stream, allocator);
-  }
-
-  Matrix::colReverse(components, prms.n_cols, prms.n_cols, stream);
-  LinAlg::transpose(components, prms.n_cols, stream);
-
-  Matrix::rowReverse(explained_var, prms.n_cols, 1, stream);
-}
-
-template <typename math_t>
 void calEig(const cumlHandle_impl &handle, math_t *components,
             math_t *explained_var, paramsTSVD prms, cudaStream_t stream) {
   auto cusolver_handle = handle.getcusolverDnHandle();
   auto allocator = handle.getDeviceAllocator();
 
   if (prms.algorithm == solver::COV_EIG_JACOBI) {
-    // LinAlg::eigJacobi(in, prms.n_cols, prms.n_cols, components, explained_var,
-    //                  (math_t)prms.tol, prms.n_iterations, cusolver_handle,
-    //                  stream, allocator);
-    LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
-                  cusolver_handle, stream, allocator);
+    LinAlg::eigJacobi(components, prms.n_cols, prms.n_cols, explained_var,
+                      (math_t)prms.tol, prms.n_iterations, cusolver_handle,
+                      stream, allocator);
   } else {
     LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
                   cusolver_handle, stream, allocator);
