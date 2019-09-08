@@ -80,18 +80,32 @@ void calCompExpVarsSvd(const cumlHandle_impl &handle, math_t *in,
   Matrix::ratio(explained_vars, explained_var_ratio, prms.n_components, stream,
                 allocator);
 }
-
+  
 template <typename math_t>
 void calEig(const cumlHandle_impl &handle, math_t *components,
             math_t *explained_var, paramsTSVD prms, cudaStream_t stream) {
   auto cusolver_handle = handle.getcusolverDnHandle();
   auto allocator = handle.getDeviceAllocator();
 
+#if CUDART_VERSION >= 10010
   if (prms.algorithm == solver::COV_EIG_JACOBI) {
     LinAlg::eigJacobi(components, prms.n_cols, prms.n_cols, explained_var,
                       (math_t)prms.tol, prms.n_iterations, cusolver_handle,
                       stream, allocator);
-  } else {
+    
+    Matrix::colReverse(components, prms.n_cols, prms.n_cols, stream);
+    LinAlg::transpose(components, prms.n_cols, stream);
+
+    Matrix::rowReverse(explained_var, prms.n_cols, 1, stream);
+  } else {    
+   
+  }
+#else
+  if (prms.algorithm == solver::COV_EIG_JACOBI) {
+    LinAlg::eigJacobi(components, prms.n_cols, prms.n_cols, explained_var,
+                      (math_t)prms.tol, prms.n_iterations, cusolver_handle,
+                      stream, allocator);
+  } else {    
     LinAlg::eigDC(components, prms.n_cols, prms.n_cols, explained_var,
                   cusolver_handle, stream, allocator);
   }
@@ -100,6 +114,7 @@ void calEig(const cumlHandle_impl &handle, math_t *components,
   LinAlg::transpose(components, prms.n_cols, stream);
 
   Matrix::rowReverse(explained_var, prms.n_cols, 1, stream);
+#endif
 }
 
 /**
@@ -189,6 +204,7 @@ void tsvdFit(const cumlHandle_impl &handle, math_t *input, math_t *components,
 
   device_buffer<math_t> explained_var_all(allocator, stream, prms.n_cols);
 
+#if CUDART_VERSION >= 10010
   calEig(handle, components_all.data(), explained_var_all.data(), prms, stream);
 
   Matrix::truncZeroOrigin(components_all.data(), prms.n_cols, components,
@@ -197,8 +213,19 @@ void tsvdFit(const cumlHandle_impl &handle, math_t *input, math_t *components,
   math_t scalar = math_t(1);
   Matrix::seqRoot(explained_var_all.data(), singular_vals, scalar,
                   prms.n_components, stream);
-}
+#else
+  calEig(handle, components_all.data(), explained_var_all.data(), prms, stream);
 
+  Matrix::truncZeroOrigin(components_all.data(), prms.n_cols, components,
+                          prms.n_components, prms.n_cols, stream);
+
+  math_t scalar = math_t(1);
+  Matrix::seqRoot(explained_var_all.data(), singular_vals, scalar,
+                  prms.n_components, stream);
+  
+#endif
+}
+  
 /**
  * @brief performs fit and transform operations for the tsvd. Generates transformed data, eigenvectors, explained vars, singular vals, etc.
  * @input param handle: the internal cuml handle object
