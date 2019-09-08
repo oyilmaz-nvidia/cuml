@@ -178,7 +178,53 @@ void eigJacobi(const math_t *in, int n_rows, int n_cols, math_t *eig_vectors,
   eigJacobi(in, eig_vectors, eig_vals, tol, sweeps, n_rows, n_cols, cusolverH,
             stream);
 }
+           
+/**
+ * @defgroup overloaded function for eig decomp with Jacobi method for the
+ * column-major symmetric matrices (in parameter)
+ * @param eig_vectors: cov matrix input and eigenvectors
+ * @param n_rows: number of rows of the input
+ * @param n_cols: number of cols of the input
+ * @param eig_vals: eigen values
+ * @param tol: error tolerance for the jacobi method. Algorithm stops when the
+ * error is below tol
+ * @param sweeps: number of sweeps in the Jacobi algorithm. The more the better
+ * accuracy.
+ * @param cusolverH cusolver handle
+ * @param allocator device allocator for temporary buffers during computation
+ * @{
+ */
+template <typename math_t>
+void eigJacobi(math_t *eig_vectors, int n_rows, int n_cols,
+               math_t *eig_vals, math_t tol, int sweeps,
+               cusolverDnHandle_t cusolverH, cudaStream_t stream,
+               std::shared_ptr<deviceAllocator> allocator) {
+  syevjInfo_t syevj_params = nullptr;
+  CUSOLVER_CHECK(cusolverDnCreateSyevjInfo(&syevj_params));
+  CUSOLVER_CHECK(cusolverDnXsyevjSetTolerance(syevj_params, tol));
+  CUSOLVER_CHECK(cusolverDnXsyevjSetMaxSweeps(syevj_params, sweeps));
 
+  int lwork;
+  CUSOLVER_CHECK(cusolverDnsyevj_bufferSize(
+    cusolverH, CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_UPPER, n_rows,
+    eig_vectors, n_cols, eig_vals, &lwork, syevj_params));
+
+  device_buffer<math_t> d_work(allocator, stream, lwork);
+  device_buffer<int> dev_info(allocator, stream, 1);
+
+  CUSOLVER_CHECK(cusolverDnsyevj(cusolverH, CUSOLVER_EIG_MODE_VECTOR,
+                                 CUBLAS_FILL_MODE_UPPER, n_rows, eig_vectors,
+                                 n_cols, eig_vals, d_work.data(), lwork,
+                                 dev_info.data(), syevj_params, stream));
+
+  int executed_sweeps;
+  CUSOLVER_CHECK(
+    cusolverDnXsyevjGetSweeps(cusolverH, syevj_params, &executed_sweeps));
+
+  CUDA_CHECK(cudaGetLastError());
+  CUSOLVER_CHECK(cusolverDnDestroySyevjInfo(syevj_params));
+}
+           
 /**
  * @defgroup overloaded function for eig decomp with Jacobi method for the
  * column-major symmetric matrices (in parameter)
@@ -199,32 +245,12 @@ void eigJacobi(const math_t *in, int n_rows, int n_cols, math_t *eig_vectors,
                math_t *eig_vals, math_t tol, int sweeps,
                cusolverDnHandle_t cusolverH, cudaStream_t stream,
                std::shared_ptr<deviceAllocator> allocator) {
-  syevjInfo_t syevj_params = nullptr;
-  CUSOLVER_CHECK(cusolverDnCreateSyevjInfo(&syevj_params));
-  CUSOLVER_CHECK(cusolverDnXsyevjSetTolerance(syevj_params, tol));
-  CUSOLVER_CHECK(cusolverDnXsyevjSetMaxSweeps(syevj_params, sweeps));
-
-  int lwork;
-  CUSOLVER_CHECK(cusolverDnsyevj_bufferSize(
-    cusolverH, CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_UPPER, n_rows,
-    eig_vectors, n_cols, eig_vals, &lwork, syevj_params));
-
-  device_buffer<math_t> d_work(allocator, stream, lwork);
-  device_buffer<int> dev_info(allocator, stream, 1);
-
+           
   MLCommon::Matrix::copy(in, eig_vectors, n_rows, n_cols, stream);
-
-  CUSOLVER_CHECK(cusolverDnsyevj(cusolverH, CUSOLVER_EIG_MODE_VECTOR,
-                                 CUBLAS_FILL_MODE_UPPER, n_rows, eig_vectors,
-                                 n_cols, eig_vals, d_work.data(), lwork,
-                                 dev_info.data(), syevj_params, stream));
-
-  int executed_sweeps;
-  CUSOLVER_CHECK(
-    cusolverDnXsyevjGetSweeps(cusolverH, syevj_params, &executed_sweeps));
-
-  CUDA_CHECK(cudaGetLastError());
-  CUSOLVER_CHECK(cusolverDnDestroySyevjInfo(syevj_params));
+  eigJacobi(eig_vectors, n_rows, n_cols,
+            eig_vals, tol, sweeps,
+            cusolverH, stream,
+            allocator);
 }
 
 };  // end namespace LinAlg
