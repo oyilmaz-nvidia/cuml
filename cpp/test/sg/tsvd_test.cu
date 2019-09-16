@@ -96,10 +96,6 @@ class TsvdTest : public ::testing::TestWithParam<TsvdInputs<T>> {
       prms.algorithm = solver::COV_EIG_DQ;
     else if (params.algo == 1)
       prms.algorithm = solver::COV_EIG_JACOBI;
-    else if (params.algo == 2) {
-      prms.algorithm = solver::RANDOMIZED;
-      prms.n_components = params.n_col2 - 15;
-    }
 
     allocate(data2, len);
     r.uniform(data2, len, T(-1.0), T(1.0), stream);
@@ -154,14 +150,14 @@ class TsvdTest : public ::testing::TestWithParam<TsvdInputs<T>> {
 const std::vector<TsvdInputs<float>> inputsf2 = {
   {0.01f, 4 * 3, 4, 3, 1024 * 128, 1024, 128, 1234ULL, 0},
   {0.01f, 4 * 3, 4, 3, 1024 * 128, 1024, 128, 1234ULL, 1},
-  {0.05f, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 2},
-  {0.05f, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 2}};
+  {0.05f, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 0},
+  {0.05f, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 1}};
 
 const std::vector<TsvdInputs<double>> inputsd2 = {
   {0.01, 4 * 3, 4, 3, 1024 * 128, 1024, 128, 1234ULL, 0},
   {0.01, 4 * 3, 4, 3, 1024 * 128, 1024, 128, 1234ULL, 1},
-  {0.05, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 2},
-  {0.05, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 2}};
+  {0.05, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 0},
+  {0.05, 4 * 3, 4, 3, 512 * 64, 512, 64, 1234ULL, 1}};
 
 typedef TsvdTest<float> TsvdTestLeftVecF;
 TEST_P(TsvdTestLeftVecF, Result) {

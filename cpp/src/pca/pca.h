@@ -45,9 +45,15 @@ void truncCompExpVars(const cumlHandle_impl &handle, math_t *components_all,
   device_buffer<math_t> explained_var_all(allocator, stream, prms.n_cols);
   device_buffer<math_t> explained_var_ratio_all(allocator, stream, prms.n_cols);
 
+#if CUDART_VERSION >= 10010
+  calEig(handle, components_all, components, explained_var_all.data(), prms,
+         stream);
+#else
   calEig(handle, components_all, explained_var_all.data(), prms, stream);
   Matrix::truncZeroOrigin(components_all, prms.n_cols, components,
                           prms.n_components, prms.n_cols, stream);
+#endif
+
   Matrix::ratio(explained_var_all.data(), explained_var_ratio_all.data(),
                 prms.n_cols, allocator, stream);
   Matrix::truncZeroOrigin(explained_var_all.data(), prms.n_cols, explained_var,
