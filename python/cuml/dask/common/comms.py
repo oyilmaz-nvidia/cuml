@@ -128,7 +128,7 @@ async def _func_init_all(sessionId, uniqueId, comms_p2p, worker_info, verbose):
         print("NCCL Initialization took: %f seconds." % end)
 
     if comms_p2p:
-        _func_ucp_create_endpoints(sessionId, worker_info)
+        await _func_ucp_create_endpoints(sessionId, worker_info)
         _func_build_handle_p2p(sessionId)
     else:
         _func_build_handle(sessionId)
@@ -162,10 +162,9 @@ async def _func_ucp_create_listener(sessionId, r):
         print("Listener already started for sessionId=" +
               str(sessionId))
     else:
-        ucp.init()
-        listener = ucp.start_listener(_connection_func, 0,
-                                      is_coroutine=True)
 
+        ucp.init()
+        listener = ucp.start_listener(_connection_func, 0, is_coroutine=True)
         worker_state(sessionId)["ucp_listener"] = listener
 
         while not listener.done():
@@ -260,11 +259,11 @@ async def _func_ucp_create_endpoints(sessionId, worker_info):
     local_address = dask_worker.address
 
     eps = [None] * len(worker_info)
-
     count = 1
 
     for k in worker_info:
-        if k != local_address:
+        if str(k) != str(local_address):
+
             ip, port = parse_host_port(k)
             ep = await ucp.get_endpoint(ip.encode(), worker_info[k]["p"],
                                         timeout=1)
@@ -365,6 +364,7 @@ class CommsContext:
         """
         self.client.run(_func_ucp_create_listener,
                         self.sessionId,
+                        random.random(),
                         workers=self.worker_addresses,
                         wait=False)
 
@@ -417,9 +417,14 @@ class CommsContext:
                         worker_info,
                         verbose,
                         workers=self.worker_addresses,
-                        wait=True)
+                        wait=False)
 
         self.nccl_initialized = True
+
+        if self.comms_p2p:
+            self.block_for_init("ucp_eps")
+        else:
+            self.block_for_init("nccl")
 
         if self.comms_p2p:
             self.ucx_initialized = True

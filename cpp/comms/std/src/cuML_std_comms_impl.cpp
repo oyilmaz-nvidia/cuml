@@ -182,7 +182,6 @@ void inject_comms_py(ML::cumlHandle *handle, ncclComm_t comm,
   }
 
   inject_comms(*handle, comm, (ucp_worker_h)ucp_worker, eps_sp, size, rank);
-
 #else
   inject_comms(*handle, comm, size, rank);
 #endif
