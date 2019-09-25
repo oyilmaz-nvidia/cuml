@@ -79,6 +79,28 @@ cdef extern from "pca/pca.hpp" namespace "ML":
                               double *noise_vars,
                               paramsPCA prms)
 
+    cdef void pcaFitTransformOpg(cumlHandle& handle,
+                              float *input,
+                              float *trans_input,
+                              float *components,
+                              float *explained_var,
+                              float *explained_var_ratio,
+                              float *singular_vals,
+                              float *mu,
+                              float *noise_vars,
+                              paramsPCA prms)
+
+    cdef void pcaFitTransformOpg(cumlHandle& handle,
+                              double *input,
+                              double *trans_input,
+                              double *components,
+                              double *explained_var,
+                              double *explained_var_ratio,
+                              double *singular_vals,
+                              double *mu,
+                              double *noise_vars,
+                              paramsPCA prms)
+
     cdef void pcaInverseTransform(cumlHandle& handle,
                                   float *trans_input,
                                   float *components,
@@ -424,6 +446,103 @@ class PCA(Base):
 
         return self
 
+    def fit_opg(self, X, _transform=False):
+        """
+        Fit the model with X.
+
+        Parameters
+        ----------
+        X : array-like (device or host) shape = (n_samples, n_features)
+            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Acceptable formats: cuDF DataFrame, NumPy ndarray, Numba device
+            ndarray, cuda array interface compliant array like CuPy
+
+        Returns
+        -------
+        cluster labels
+
+        """
+        cdef uintptr_t input_ptr
+        X_m, input_ptr, self.n_rows, self.n_cols, self.dtype = \
+            input_to_dev_array(X, check_dtype=[np.float32, np.float64])
+
+        cpdef paramsPCA params
+        params.n_components = self.n_components
+        params.n_rows = self.n_rows
+        params.n_cols = self.n_cols
+        params.whiten = self.whiten
+        params.n_iterations = self.iterated_power
+        params.tol = self.tol
+        params.algorithm = self.c_algorithm
+
+        if self.n_components > self.n_cols:
+            raise ValueError('Number of components should not be greater than'
+                             'the number of columns in the data')
+
+        self._initialize_arrays(params.n_components,
+                                params.n_rows, params.n_cols)
+
+        cdef uintptr_t comp_ptr = get_dev_array_ptr(self.components_ary)
+
+        cdef uintptr_t explained_var_ptr = \
+            get_cudf_column_ptr(self.explained_variance_)
+
+        cdef uintptr_t explained_var_ratio_ptr = \
+            get_cudf_column_ptr(self.explained_variance_ratio_)
+
+        cdef uintptr_t singular_vals_ptr = \
+            get_cudf_column_ptr(self.singular_values_)
+
+        cdef uintptr_t mean_ptr = get_cudf_column_ptr(self.mean_)
+
+        cdef uintptr_t noise_vars_ptr = \
+            get_cudf_column_ptr(self.noise_variance_)
+
+        cdef uintptr_t t_input_ptr = get_dev_array_ptr(self.trans_input_)
+
+        cdef cumlHandle* handle_ = <cumlHandle*><size_t>self.handle.getHandle()
+        if self.dtype == np.float32:
+            pcaFitTransformOpg(handle_[0],
+                            <float*> input_ptr,
+                            <float*> t_input_ptr,
+                            <float*> comp_ptr,
+                            <float*> explained_var_ptr,
+                            <float*> explained_var_ratio_ptr,
+                            <float*> singular_vals_ptr,
+                            <float*> mean_ptr,
+                            <float*> noise_vars_ptr,
+                            params)
+        else:
+            pcaFitTransformOpg(handle_[0],
+                            <double*> input_ptr,
+                            <double*> t_input_ptr,
+                            <double*> comp_ptr,
+                            <double*> explained_var_ptr,
+                            <double*> explained_var_ratio_ptr,
+                            <double*> singular_vals_ptr,
+                            <double*> mean_ptr,
+                            <double*> noise_vars_ptr,
+                            params)
+
+        # make sure the previously scheduled gpu tasks are complete before the
+        # following transfers start
+        self.handle.sync()
+
+        # Keeping the additional dataframe components during cuml 0.8.
+        # See github issue #749
+        self.components_ = cudf.DataFrame()
+        for i in range(0, params.n_cols):
+            n_c = params.n_components
+            self.components_[str(i)] = self.components_ary[i*n_c:(i+1)*n_c]
+
+        if (isinstance(X, cudf.DataFrame)):
+            del(X_m)
+
+        if not _transform:
+            del(self.trans_input_)
+
+        return self
+
     def fit_transform(self, X, y=None):
         """
         Fit the model with X and apply the dimensionality reduction on X.
@@ -443,6 +562,33 @@ class PCA(Base):
         X_new : cuDF DataFrame, shape (n_samples, n_components)
         """
         self.fit(X, _transform=True)
+        X_new = cudf.DataFrame()
+        num_rows = self.n_rows
+
+        for i in range(0, self.n_components):
+            X_new[str(i)] = self.trans_input_[i*num_rows:(i+1)*num_rows]
+
+        return X_new
+
+    def fit_transform_opg(self, X, y=None):
+        """
+        Fit the model with X and apply the dimensionality reduction on X.
+
+        Parameters
+        ----------
+        X : array-like (device or host) shape = (n_samples, n_features)
+          training data (floats or doubles), where n_samples is the number of
+          samples, and n_features is the number of features.
+          Acceptable formats: cuDF DataFrame, NumPy ndarray, Numba device
+          ndarray, cuda array interface compliant array like CuPy
+
+        y : ignored
+
+        Returns
+        -------
+        X_new : cuDF DataFrame, shape (n_samples, n_components)
+        """
+        self.fit_opg(X, _transform=True)
         X_new = cudf.DataFrame()
         num_rows = self.n_rows
 

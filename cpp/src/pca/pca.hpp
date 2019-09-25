@@ -49,4 +49,17 @@ void pcaTransform(cumlHandle &handle, double *input, double *components,
                   double *trans_input, double *singular_vals, double *mu,
                   paramsPCA prms);
 
+void pcaFitOpg(cumlHandle &handle, float *input, float *components,
+               float *explained_var, float *explained_var_ratio,
+               float *singular_vals, float *mu, float *noise_vars,
+               paramsPCA prms);
+void pcaFitTransformOpg(cumlHandle &handle, float *input, float *trans_input,
+                        float *components, float *explained_var,
+                        float *explained_var_ratio, float *singular_vals,
+                        float *mu, float *noise_vars, paramsPCA prms);
+void pcaFitTransformOpg(cumlHandle &handle, double *input, double *trans_input,
+                        double *components, double *explained_var,
+                        double *explained_var_ratio, double *singular_vals,
+                        double *mu, double *noise_vars, paramsPCA prms);
+
 };  // end namespace ML
